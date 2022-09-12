@@ -1,6 +1,6 @@
 # circles2022
 
-Code for external use. 
+Code for Alfonso-Gonzalez et al. (in prep).
 
 Structure:
 
