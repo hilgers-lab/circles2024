@@ -8,5 +8,5 @@ Structure:
 - circRNA quantification: `snakemake.CIRIquant`
 - circRNA binding, RIP-seq: `RIP-seq.eisa.junction_counts`
 - intron binding, iCLIP: `iCLIP.Intron_analysis`
-- Visualization of BSJ: `STAR_Chimeric`
+- Signal tracks for circRNA back-splice junctions: `STAR_Chimeric`
 
