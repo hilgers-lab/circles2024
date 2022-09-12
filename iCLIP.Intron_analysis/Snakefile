@@ -1,0 +1,101 @@
+
+# required R/4.0.3 bedtools2
+## TODO
+# [done] Call scripts from maindir
+# [done] fix log folders
+# [open] Harmonize gene_id formatting, see DEXseq delimiter
+
+maindir = os.path.abspath(workflow.basedir)
+
+# Input requirements
+# - genome annotation gtf
+# - ciri2 circRNA reference
+# - iCLIP bedgraph
+#
+# Target sets:
+# - circRNA target set (tsv format), required column "circRNA_ID"
+# - gene targets (tsv format), required column "gene_id"
+
+###################
+### Input data definition
+resources = config['resources']
+circRNA_targets = config['circRNA_targets']
+exon_targets = config['exon_targets'] if 'exon_targets' in config.keys() else None
+gene_targets = config['gene_targets']
+### /Input data definition
+###################
+
+circ_set=list(circRNA_targets.keys())
+print('>>> circRNA set:')
+for feature0 in circ_set:
+    print('[',feature0,"-",circRNA_targets[feature0],']')
+
+exon_set=None
+if exon_targets:
+    exon_set=list(exon_targets.keys())
+    print('>>> Exon set:')
+    for feature0 in exon_set:
+        print('[',feature0,"-",exon_targets[feature0],']')
+
+gene_set = list(gene_targets.keys())
+print('>>> Genes set:')
+for feature0 in gene_set:
+    print('[',feature0,"-",gene_targets[feature0],']')
+
+
+
+localrules: extract_ciri2_targets, centrality, enrichment,iCLIP_report_dexseq,iCLIP_report_ciri2
+
+# mind the order!
+include: "rules/intron_db.snakefile"
+include: "rules/analysis.snakefile"
+include: "rules/reports.snakefile"
+include: "rules/iclip_signal.snakefile"
+
+set_ciri2_variables = ['upstream', 'internal_upstream','downstream', 'internal_downstream','internal_single','notflanking','internal_notflanking','geneset']
+set_dexseq_variables = ['upstream','downstream','notflanking','geneset']
+
+rule all:
+    input:
+        os.path.join("feature_db","dm6_ensembl96.genes.bed"),
+        os.path.join("feature_db","dm6_ensembl96.exons.bed"),
+        os.path.join("feature_db","dm6_ensembl96.introns.bed"),
+        os.path.join('iCLIP_coverage','dm6_ensembl96.introns.coverage.bed'),
+        expand(os.path.join("input","circRNA.{featureA}.ciri"), featureA = circ_set),
+        expand(os.path.join("Intron_groups","{featureA}_ciri2.gff"), featureA = circ_set),
+        expand(os.path.join("Intron_groups","{featureA}_dexseq.gff"), featureA = exon_set),
+        expand(os.path.join("Intron_groups","{featureB}_ciri2_geneset.gff"), featureB = circ_set),
+        expand(os.path.join("Intron_groups","{featureB}_dexseq_geneset.gff"), featureB = exon_set),
+        expand(os.path.join("Intron_groups","{featureB}_genes_geneset.gff"), featureB = gene_set),
+
+        expand(os.path.join('iCLIP_enrichment','{group}.ciri2_{set}.default.iclip_enrichment.tsv'), group = circ_set, set = set_ciri2_variables),
+        expand(os.path.join('iCLIP_enrichment','{group}.dexseq_{set}.default.iclip_enrichment.tsv'), group = exon_set, set = set_dexseq_variables),
+        expand(os.path.join('iCLIP_enrichment','{group}.genes_{set}.default.iclip_enrichment.tsv'), group = gene_set, set = ['geneset']),
+
+        expand(os.path.join('iCLIP_centrality','{group}.ciri2_{set}.centrality.tsv'), group = circ_set, set = set_ciri2_variables),
+        expand(os.path.join('iCLIP_centrality','{group}.dexseq_{set}.centrality.tsv'), group = exon_set, set = set_dexseq_variables),
+        expand(os.path.join('iCLIP_centrality','{group}.genes_{set}.centrality.tsv'), group = gene_set, set = ['geneset']),
+
+        expand(os.path.join('iCLIP_profile','{group}.ciri2_{set}.profile.tsv'), group = circ_set, set = set_ciri2_variables),
+        expand(os.path.join('iCLIP_profile','{group}.dexseq_{set}.profile.tsv'), group = exon_set, set = set_dexseq_variables),
+        expand(os.path.join('iCLIP_profile','{group}.genes_{set}.profile.tsv'), group = gene_set, set = ['geneset']),
+
+        os.path.join('iCLIP.introns_analysis.ciri2.html'),
+        os.path.join('iCLIP.introns_analysis.dexseq.html'),
+        os.path.join('iCLIP.introns_analysis.genes.html'),
+
+        expand(os.path.join('iCLIP_coverage','dm6_ensembl96.introns.{featureA}_ciri2_{flank}.coverage.bed'),
+                featureA = circ_set,flank = ['upstream','downstream']),
+        expand(os.path.join('iCLIP_coverage','dm6_ensembl96.introns.{featureA}_dexseq_{flank}.coverage.bed'),
+                featureA = exon_set,flank = ['upstream','downstream'])
+
+# Pre-defined sets
+rule report:
+    input:
+        os.path.join('iCLIP.introns_analysis.ciri2.html'),
+        os.path.join('iCLIP.introns_analysis.dexseq.html'),
+        os.path.join('iCLIP.introns_analysis.genes.html')
+
+### Aggregation section
+
+# rule introns_*: modules can be added

@@ -1,0 +1,42 @@
+# Produces STAR chimeric alignments and converts to IGV read-able junctions tracks
+import glob, os, yaml
+
+maindir = os.path.abspath(workflow.basedir)
+
+fastq_directory=os.path.join("FASTQ")
+
+# Fill in, genome fasta (fa) and genome annotation (gtf)
+config=dict()
+config['genome_fasta']=""
+config['genome_gtf']=""
+# config['STAR_index_dir']="STAR_v2.7.7a_index.dm6"
+
+samplenames, = glob_wildcards(os.path.join(fastq_directory,'{sample}_R1.fastq.gz'))
+samplenames.sort()
+samplenames = [x for x in samplenames if not os.path.sep in x]
+
+print(samplenames)
+
+reference_fasta = config['genome_fasta']
+reference_gtf  = config['genome_gtf']
+junc_max_span = 10000
+
+include: os.path.join("rules","star_chimeric.snakefile")
+
+localrules: link_fastq
+
+rule all:
+    input:
+        expand(os.path.join("STAR_chimeric","library_IGV_junctions","{sample}.Chimeric.out.junction.bed"), sample = samplenames),
+        expand(os.path.join("STAR_chimeric","library","{sample}.Chimeric.out.bam"),sample = samplenames)
+
+
+rule link_fastq:
+    input:
+        r1=os.path.join(maindir,fastq_directory,"{sample}_R1.fastq.gz"),
+        r2=os.path.join(maindir,fastq_directory,"{sample}_R2.fastq.gz")
+    output:
+        r1=os.path.join("FASTQ","{sample}_R1.fastq.gz"),
+        r2=os.path.join("FASTQ","{sample}_R2.fastq.gz")
+    shell:
+        "ln -sr {input.r1} {output.r1} && ln -sr {input.r2} {output.r2}"

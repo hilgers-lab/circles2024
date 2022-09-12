@@ -1,0 +1,219 @@
+# required tools in path
+import glob, os, yaml
+
+maindir = os.path.abspath(workflow.basedir)
+# configfile: None
+
+condayaml=os.path.join(maindir, "conda.ciriquant.yaml")
+
+print(maindir)
+
+print(config)
+
+# option parameters
+samplenames, = glob_wildcards(os.path.join(config["fastq_directory"],'{sample}_R1.fastq.gz'))
+samplenames.sort()
+samplenames = [x for x in samplenames if not os.path.sep in x]
+
+circles_ciri, = glob_wildcards(os.path.join(config["circles"],'{circset}.ciri'))
+
+circlenames = circles_ciri
+
+circlenames.sort()
+circlenames = [x for x in circlenames if not os.path.sep in x]
+
+print("---")
+print(len(circlenames))
+print("---")
+
+samplelistset= None
+if 'samplelist_dir' in config.keys():
+    samplelistset, = glob_wildcards(os.path.join(config['samplelist_dir'],'{samplelist}.tsv'))
+    samplelistset = [x for x in samplelistset if not os.path.sep in x]
+
+print('>>> Files:')
+print(samplenames)
+print(circlenames)
+print(samplelistset)
+print('>>> done')
+
+assert len(samplenames) > 0, 'No samples found. Exit...'
+
+# include: os.path.join(maindir, "rules", "annotations.snakefile")
+localrules: CIRIquant_config,copy_config,link_fastq,link_circles_ciri,copy_samplesheets,construct_samplelists,construct_samplelists_genes,prep_CIRIquant,prep_DE, CIRI_replicate_DE
+
+rule all:
+    input:
+        "config.yaml",
+        os.path.join('CIRIquant.resources','CIRIquant.yaml'),
+        expand(os.path.join("CIRIquant","circles_{circset}","{samplename}.gtf"), circset = circlenames, samplename = samplenames),
+        expand(os.path.join("CIRIquant.dge","circles_{circset}","samplesheet_{samplelist}.circles.tsv"), circset = circlenames, samplelist = samplelistset),
+        expand(os.path.join("CIRIquant.dge","circles_{circset}","{samplelist}.differential.tsv"), circset = circlenames, samplelist = samplelistset),
+        # expand(os.path.join("STAR_chimeric","{library}","{samplename}.bam"), library = ["library","circles_w1118_combined_RNAseR"], samplename = samplenames),
+        # expand(os.path.join("STAR_chimeric","{library}_IGV_junctions","{samplename}.Chimeric.out.junction.bed"), library = ["library","circles_w1118_combined_RNAseR"], samplename = samplenames)
+        # expand(os.path.join("CIRIquant","circles_{circset}","differential","{samplelist}.count_matrix.genes.csv"), circset = circlenames, samplelist = samplelistset)
+
+rule copy_config:
+    output:
+        yaml="config.yaml"
+    run:
+        yaml_stream = open(output.yaml,"w")
+        yaml.dump(config, yaml_stream)
+        yaml_stream.close()
+
+rule link_fastq:
+    input:
+        os.path.join(config['fastq_directory'], "{samplename}_{mate}.fastq.gz")
+    output:
+        os.path.join("FASTQ", "{samplename}_{mate}.fastq.gz")
+    shell:
+        "ln -sr {input} {output}"
+
+rule link_circles_ciri:
+    input:
+        circle=os.path.join(config['circles'], "{circset}.ciri")
+    output:
+        circle="CIRCLES/{circset}.ciri"
+    shell:
+        "ln -sr {input.circle} {output.circle}"
+
+rule copy_samplesheets:
+    input:
+        sheet=os.path.join(config['samplelist_dir'],'{samplelist}.tsv')
+    output:
+        sheet="SAMPLESHEETS/{samplelist}.tsv"
+    shell:
+        "cp {input.sheet} {output.sheet}"
+
+rule hisat2_index:
+    input:
+        fasta=config['fasta']
+    output:
+        done=os.path.join("CIRIquant.resources","hisat2_index","done")
+    params:
+        index_base=os.path.join("CIRIquant.resources","hisat2_index", os.path.basename(config['fasta']))
+    conda: condayaml
+    threads: 24
+    shell:
+        "hisat2-build -p {threads} {input.fasta} {params.index_base} && touch {output.done}"
+
+rule bwa_index:
+    input:
+        fasta=config['fasta']
+    output:
+        done=os.path.join("CIRIquant.resources","bwa_index","done")
+    params:
+        index_base=os.path.join("CIRIquant.resources","bwa_index", os.path.basename(config['fasta']))
+    conda: condayaml
+    shell:
+        "bwa index -p {params.index_base} {input.fasta} && touch {output.done}"
+
+rule CIRIquant_config:
+    input:
+        fasta=config['fasta'],
+        gtf=config['gtf'],
+        hisat2_index=rules.hisat2_index.output.done,
+        bwa_index=rules.bwa_index.output.done,
+        script=os.path.join(maindir,"tools","CIRIquant_config.sh")
+    output:
+        yaml=os.path.join('CIRIquant.resources','CIRIquant.yaml')
+    params:
+        name=config['name'],
+        hisat2_index_pref=rules.hisat2_index.params.index_base,
+        bwa_index_pref=rules.bwa_index.params.index_base
+    conda: condayaml
+    shell:
+        "bash {input.script} {params.name} {input.fasta} {input.gtf} {params.bwa_index_pref} {params.hisat2_index_pref} > {output.yaml}"
+
+rule CIRIquant_ciri:
+    input:
+        fq_r1="FASTQ/{samplename}_R1.fastq.gz",
+        fq_r2="FASTQ/{samplename}_R2.fastq.gz",
+        circles="CIRCLES/{circset}.ciri",
+        config_yaml=rules.CIRIquant_config.output.yaml
+    output:
+        bam=temp(os.path.join("CIRIquant","circles_{circset}","align","{samplename}.sorted.bam")),
+        bai=temp(os.path.join("CIRIquant","circles_{circset}","align","{samplename}.sorted.bam.bai")),
+        bam_circ=temp(os.path.join("CIRIquant","circles_{circset}","circ","{samplename}_denovo.sorted.bam")),
+        bai_circ=temp(os.path.join("CIRIquant","circles_{circset}","circ","{samplename}_denovo.sorted.bam.bai")),
+        gtf=os.path.join("CIRIquant","circles_{circset}","{samplename}.gtf"),
+        index=os.path.join("CIRIquant","circles_{circset}","circ","{samplename}_index.fa")
+    params:
+        out_directory=directory(os.path.join("CIRIquant","circles_{circset}")),
+        libtype="--libary-type 2", # used to be 2
+        prefix="{samplename}",
+    log: os.path.join("CIRIquant","circles_{circset}","log","CIRIquant.circles_{circset}.{samplename}.log")
+    threads: 12
+    conda: condayaml
+    shell:
+        "CIRIquant -1 {input.fq_r1} -2 {input.fq_r2} -o {params.out_directory} --log {log} -t {threads} {params.libtype} -p {params.prefix}  --circ {input.circles} --tool CIRI2 --config {input.config_yaml}"
+
+# prep_CIRIquant
+rule construct_samplelists:
+    input:
+        samplesheet=rules.copy_samplesheets.output.sheet,
+        gtfset=expand(os.path.join("CIRIquant","circles_{circset}", "{samplename}.gtf"), circset = circlenames, samplename = samplenames)
+    output:
+        samplesheet=os.path.join("CIRIquant.dge","circles_{circset}","samplesheet_{samplelist}.circles.tsv")
+    params:
+        sourcedir=os.path.join("CIRIquant","circles_{circset}"),
+        tool = os.path.join(maindir, "tools","make_ciri_samplesheet.R")
+    log: os.path.join("CIRIquant.dge","circles_{circset}","log","construct_samplelists.{samplelist}.log")
+    conda: condayaml
+    shell:
+        # activate Rscript {params.tool} --use_batch, if multiple batches are available
+        "Rscript {params.tool} --use_batch -s {input.samplesheet} -p {params.sourcedir} -o {output.samplesheet} &> {log}"
+
+rule prep_CIRIquant:
+    input:
+        samplelist=rules.construct_samplelists.output.samplesheet
+    output:
+        library=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.lib_info.csv"),
+        circles=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.circRNA_anno.csv"),
+        bsj=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.bsj.csv"),
+        ratio=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.bsj_ratio.csv")
+    log: os.path.join("CIRIquant.dge","circles_{circset}","differential","log", "prep_CIRIquant.{samplelist}.log")
+    conda: condayaml
+    shell:
+        "prep_CIRIquant -i {input.samplelist} --lib {output.library} --circ {output.circles} --bsj {output.bsj} --ratio {output.ratio} &> {log}"
+
+
+rule construct_samplelists_genes:
+    input:
+        samplesheet=rules.copy_samplesheets.output.sheet,
+        gtfset=expand(os.path.join("CIRIquant","circles_{circset}", "{samplename}.gtf"), circset = circlenames, samplename = samplenames)
+    output:
+        samplesheet=os.path.join("CIRIquant.dge","circles_{circset}","samplesheet_{samplelist}.genes.tsv")
+    params:
+        sourcedir=os.path.join("CIRIquant","circles_{circset}"),
+        tool = os.path.join(maindir, "tools","make_ciri_samplesheet.R")
+    log: os.path.join("CIRIquant.dge","circles_{circset}","log","construct_samplelists_genes.{samplelist}.log")
+    conda: condayaml
+    shell:
+        "Rscript {params.tool} --genes -s {input.samplesheet} -p {params.sourcedir} -o {output.samplesheet} &> {log}"
+
+rule prep_DE:
+    input:
+        samplesheet = rules.construct_samplelists_genes.output.samplesheet
+    output:
+        genes=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.count_matrix.genes.csv"),
+        transcripts=os.path.join("CIRIquant.dge","circles_{circset}","differential","{samplelist}.count_matrix.transcripts.csv")
+    log: os.path.join("CIRIquant.dge","circles_{circset}","differential","log","prep_DE.{samplelist}.log"),
+    conda: condayaml
+    shell:
+        "prepDE.py -i {input.samplesheet} -g {output.genes} -t {output.transcripts} &> {log}"
+
+
+# bsj count matrix filtering, manual step required
+## https://github.com/bioinfo-biols/CIRIquant/issues/21
+rule CIRI_replicate_DE:
+    input:
+        lib=rules.prep_CIRIquant.output.library,
+        bsj=rules.prep_CIRIquant.output.bsj,
+        genes=rules.prep_DE.output.genes
+    output:
+        table=os.path.join("CIRIquant.dge","circles_{circset}","{samplelist}.differential.tsv"),
+    log: os.path.join("CIRIquant.dge","circles_{circset}","log", "CIRI_replicate_DE.{samplelist}.log"),
+    conda: condayaml
+    shell:
+        "CIRI_DE_replicate --lib {input.lib} --bsj {input.bsj} --gene {input.genes} --out {output.table} &> {log}"

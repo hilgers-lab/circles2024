@@ -1,0 +1,3 @@
+1. Configure conda environment
+2. Configure ciriQuant (see github doc at https://github.com/bioinfo-biols/CIRIquant)
+3. fix run_snakemake.sh

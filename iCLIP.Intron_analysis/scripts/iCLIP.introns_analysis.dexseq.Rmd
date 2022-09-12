@@ -1,0 +1,191 @@
+---
+title: "iCLIP Intron enrichments in features"
+author: "Michael Rauer"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+params:
+   rmd: "iCLIP.introns_analysis.Rmd"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    fig_caption: yes
+    number_sections: yes
+    tables: yes
+    toc: yes
+    toc_float:
+      collapsed: no
+      smooth_scroll: no
+---
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+```
+
+```{r message=FALSE, warning=FALSE}
+enrichment_set = snakemake@params$enrichment_set
+centrality_set = snakemake@params$centrality_set 
+profile_set = snakemake@params$profile_set
+```
+
+```{r eval=FALSE}
+enrichment_set = paste0(list.files('../iCLIP.introns_analysis.elav_spliced/iCLIP_enrichment/', pattern = '.*dexseq_.*.tsv$', full.names = TRUE),collapse = ',')
+centrality_set = paste0(list.files('../iCLIP.introns_analysis.elav_spliced/iCLIP_centrality/', pattern = '.*dexseq_.*.tsv$', full.names = TRUE),collapse = ',')
+profile_set = paste0(list.files('../iCLIP.introns_analysis.elav_spliced/iCLIP_profile/', pattern = '.*dexseq_.*.tsv$', full.names = TRUE),collapse = ',')
+```
+
+```{r message=FALSE, warning=FALSE}
+f0 = strsplit(enrichment_set, ',')[[1]]
+names(f0) = gsub('(.*).default.iclip_enrichment.tsv$','\\1',basename(f0))
+enrich.set = lapply(f0, read_tsv, show_col_types = FALSE)
+enrich.set = melt(enrich.set, id.vars = colnames(enrich.set[[1]]))
+
+f0 = strsplit(centrality_set, ',')[[1]]
+names(f0) = gsub('(.*).centrality.tsv$','\\1',basename(f0))
+centra.set = lapply(f0, read_tsv, show_col_types = FALSE)
+centra.set = melt(centra.set, id.vars = colnames(centra.set[[1]]))
+
+f0 = strsplit(profile_set, ',')[[1]]
+names(f0) = gsub('(.*).profile.tsv$','\\1',basename(f0))
+profil.set = lapply(f0, read_tsv, show_col_types = FALSE)
+profil.set = melt(profil.set, id.vars = colnames(profil.set[[1]]))
+```
+
+
+```{r message=FALSE, warning=FALSE}
+# {feature}_{type}_{set}
+enrich.set = enrich.set %>% mutate(group = gsub('(.*).dexseq_(.*)','\\1', L1),
+                                   feature = gsub('(.*).dexseq_(.*)','\\2',L1))
+centra.set = centra.set %>% mutate(group = gsub('(.*).dexseq_(.*)','\\1',L1),
+                                   feature = gsub('(.*).dexseq_(.*)','\\2',L1))
+profil.set = profil.set %>% mutate(group = gsub('(.*).dexseq_(.*)','\\1',L1),
+                                   feature = gsub('(.*).dexseq_(.*)','\\2',L1))
+
+```
+
+```{r}
+feature.factors = c('upstream','downstream','notflanking','geneset')
+
+enrich.set = enrich.set %>% mutate(feature = factor(feature, levels = feature.factors))
+centra.set = centra.set %>% mutate(feature = factor(feature, levels = feature.factors))
+profil.set = profil.set %>% mutate(feature = factor(feature, levels = feature.factors))
+
+
+scale_fill = scale_fill_brewer(palette = 'Dark2') 
+scale_color = scale_color_brewer(palette = 'Dark2') 
+```
+
+# Enrichment 
+
+```{r message=FALSE, warning=FALSE}
+ggplot(enrich.set, aes(feature)) + geom_bar(aes(weight = enrichment, fill = feature)) + 
+  facet_wrap(~group) + 
+  geom_hline(yintercept = 1) + 
+  ggtitle('Enrichment') +
+  ylab('enrichment') +
+  scale_fill +
+  theme_bw()
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(enrich.set, aes(feature)) + geom_bar(aes(weight = (empty.features/feature.count) * 100, fill = feature)) + 
+  coord_cartesian(ylim = c(0,100)) + 
+  ylab('Empty features (%)') + 
+  facet_wrap(~group) + 
+  ggtitle('Missing values') + 
+  scale_fill +
+  theme_bw()
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(enrich.set, aes(feature)) + geom_bar(aes(weight = feature.count, fill = feature)) + 
+  ylab('Feature counts (n)') + 
+  facet_wrap(~group) + 
+  ggtitle('Feature count') + 
+  scale_fill +
+  theme_bw()
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(enrich.set, aes(feature)) + geom_bar(aes(weight = log10(feature.length), fill = feature)) + 
+  ylab('Feature counts - log10(nt)') + 
+  facet_wrap(~group) + 
+  ggtitle('Nucleotides covered') + 
+  scale_fill +
+  theme_bw()
+```
+
+# Positional distribution 
+
+## iCLIP profile - position only
+
+```{r}
+ggplot(profil.set, aes(relative_position)) +
+  geom_density(show.legend = FALSE) + 
+  geom_histogram(aes(y = ..density.., fill = as.character(subjectHits)), binwidth = 0.05, show.legend = FALSE) + 
+  scale_fill_viridis_d() + 
+  facet_grid(group~feature) +
+  theme_bw()
+```
+
+```{r}
+ggplot(profil.set %>% filter(feature %in% c('upstream','downstream')), aes(relative_position)) +
+  geom_density(show.legend = FALSE) + 
+  geom_histogram(aes(y = ..density.., fill = as.character(subjectHits)), binwidth = 0.05, show.legend = FALSE) + 
+  scale_fill_viridis_d() +
+  facet_grid(group~feature, scales = 'free_y') +
+  theme_bw()
+```
+
+
+## iCLIP profile - quantity included
+
+```{r}
+profil.set = profil.set %>% mutate(bins = cut_interval(relative_position, n = 50))
+
+ggplot(profil.set, aes(x = bins)) +
+  geom_bar(aes(weight = xl.log_density)) +
+  theme_bw() +
+  facet_grid(group~feature) +
+  theme_bw()
+```
+
+```{r}
+ggplot(profil.set %>% filter(feature %in% c('upstream','downstream')), aes(x = bins)) +
+  geom_bar(aes(weight = xl.log_density)) +
+  theme_bw() +
+  facet_grid(group~feature) +
+  theme_bw()
+```
+
+## Centrality
+
+```{r message=FALSE, warning=FALSE}
+ggplot(centra.set, aes(relative_position)) + 
+  geom_density(aes()) + 
+  geom_histogram(aes(y = ..density..), bins = 25) + 
+  facet_grid(group ~ feature) +
+  theme_bw()
+```
+
+```{r message=FALSE, warning=FALSE}
+dt0 = centra.set %>% 
+  group_by(group, feature) %>% 
+  summarize(n.missing = sum(is.na(relative_position)), n.total = n()) %>% 
+  melt(id.vars = c('group','feature'))
+
+ggplot(dt0, aes(variable)) + geom_bar(aes(weight=value, fill = variable), show.legend = FALSE) + 
+  facet_grid(group~feature) + 
+  xlab('') + 
+  theme_bw()
+```
+
+```{r message=FALSE, warning=FALSE}
+ggplot(dt0 %>% filter(feature %in% c('upstream','downstream')), aes(variable)) + geom_bar(aes(weight=value, fill = variable), show.legend = FALSE) + 
+  facet_grid(group~feature) + 
+  xlab('') + 
+  theme_bw()
+```
+

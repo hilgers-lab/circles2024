@@ -1,0 +1,7 @@
+# Directory with BAM files (not files!)
+bamdir:
+# Exon & Intron database, BED format
+exonic_db:
+intronic_db:
+# genome annotation gtf, e.g. dm6 ensembl96 gtf
+annotation:

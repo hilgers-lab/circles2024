@@ -1,0 +1,25 @@
+# Overview
+
+The iCLIP.intron_analysis workflow quantifies the enrichment of iCLIP in intron of
+circRNAs. Here, first an intron database is constructed from
+a decided set of rules. Then introns are assigned to the feature sets. Finally,
+centrality and enrichment are computed.
+
+- Centrality is described in Carrasco et al. 2020.
+- Enrichment follows an idea in iCount, Curk et al. (2019) iCount.
+
+# Setup the YAML:
+
+Require categories in the YAML:
+- resources, circRNA_targets,gene_targets
+Each category is a list of items, which requires <key>: <path to file>.
+
+* <path to file> needs to be the absolute path.
+* For the 'circRNA_targets', each <key> needs to finish with '_targets'
+
+Further variable w/ example:
+- gene_biotypes: protein_coding
+- intron_maxgap: 10
+- exon_boundaries: 10
+- circRNA_merge_distance: 10
+- intron_size_thrs: 50

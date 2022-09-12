@@ -1,0 +1,95 @@
+import glob, os, yaml
+
+maindir = os.path.abspath(workflow.basedir)
+# configfile: None
+
+print(maindir)
+# print(config)
+
+print(">>> Config:")
+
+for key0 in ['genes_gtf','genome_fasta']:
+    print('\t',key0,": ",config[key0])
+
+
+downsample=None
+if 'downsample' in config.keys():
+    downsample=config['downsample']
+
+print("Downsampling:", downsample)
+
+SAMPLE, = glob_wildcards(os.path.join("FASTQ","{sample}_R1.fastq.gz"))
+print(SAMPLE)
+
+if downsample:
+    fastq_dir="FASTQ_downsampled"
+else:
+    fastq_dir="FASTQ_Cutadapt"
+print(">>>",fastq_dir, "for alignment")
+
+
+rule all:
+  input:
+  	expand(os.path.join("CIRI2","{sample}.ciri"), sample=SAMPLE)
+
+rule cutadapt:
+    input:
+        r1 =os.path.join("FASTQ","{sample}_R1.fastq.gz"),
+        r2 =os.path.join("FASTQ","{sample}_R2.fastq.gz")
+    output:
+        r1 = os.path.join("FASTQ_Cutadapt","{sample}_R1.fastq.gz"),
+        r2 = os.path.join("FASTQ_Cutadapt","{sample}_R2.fastq.gz"),
+    log:
+        out = os.path.join("FASTQ_Cutadapt","logs","Cutadapt.{sample}.out"),
+        err = os.path.join("FASTQ_Cutadapt","logs","Cutadapt.{sample}.err")
+    benchmark:
+        os.path.join("FASTQ_Cutadapt",".benchmark","Cutadapt.{sample}.benchmark")
+    threads: 8
+    shell: """
+        cutadapt -j {threads} -e 0.1 -q 16 -O 3 --trim-n --minimum-length 25 -a AGATCGGAAGAGC -A AGATCGGAAGAGC \
+            -o "{output.r1}" -p "{output.r2}" "{input.r1}" "{input.r2}" > {log.out} 2> {log.err}
+        """
+
+if downsample:
+    rule FASTQdownsample:
+        input:
+            r1 = rules.cutadapt.output.r1,
+            r2 = rules.cutadapt.output.r2
+        output:
+            r1 = temp(os.path.join("FASTQ_downsampled","{sample}_R1.fastq.gz")),
+            r2 = temp(os.path.join("FASTQ_downsampled","{sample}_R2.fastq.gz"))
+        params:
+            num_reads = downsample # takes up fraction and absolute number
+        threads: 10
+        log: os.path.join("FASTQ_downsampled","logs","{sample}.FASTQdownsample.log")
+        shell:
+            """
+            seqtk sample -s 100 {input.r1} {params.num_reads} | pigz -p {threads} -9 > {output.r1} 2> {log}
+            seqtk sample -s 100 {input.r2} {params.num_reads} | pigz -p {threads} -9 > {output.r2} 2>> {log}
+
+            """
+
+rule bwa_mem:
+    input:
+        R1=os.path.join(fastq_dir,"{sample}_R1.fastq.gz"),
+        R2=os.path.join(fastq_dir,"{sample}_R2.fastq.gz")
+    output: temp(os.path.join("bwa","{sample}.sam"))
+    params:
+        opt_string="-T 19",
+        genome=config['bwa_index']
+    threads: 20
+    shell:
+        "bwa mem -t {threads} {params.opt_string} {params.genome} {input[0]} {input[1]} > {output[0]}"
+
+rule CIRI2:
+    input:
+        sam=os.path.join("bwa","{sample}.sam")
+    output:
+        os.path.join("CIRI2","{sample}.ciri")
+    params:
+        script=os.path.join(maindir, "tools","CIRI_v2.0.6","CIRI2.pl"),
+        genome=config['genome_fasta'],
+        gtf=config['genes_gtf']
+    threads: 20
+    shell:
+         "perl {params.script} -T {threads} -I {input[0]} -O {output[0]} -F {params.genome} -A {params.gtf}"
