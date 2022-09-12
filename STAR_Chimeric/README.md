@@ -17,7 +17,7 @@ Run:
 <workdir>/
 ├── FASTQ                      # symlinks to original fastq files
 ├── STAR_chimeric
-│   ├── library                # alignments
+│   ├── library                # STAR alignments, incl chimeric files
 │   └── library_IGV_junctions  # junction tracks bed files
-└── STAR_index     # STAR index for alignment
+└── STAR_index                 # STAR index for alignment
 ```
