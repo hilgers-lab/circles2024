@@ -1,6 +1,5 @@
 # conda activate ciriquant
 set -e
-module load slurm R/4.0.3
 
 read workdir circles fastq_dir samplelist_dir params <<< "$@"
 
@@ -12,5 +11,5 @@ echo "Update your <conda prefix>"
 exit
 
 config="samplelist_dir=$(realpath $samplelist_dir) fastq_directory=$(realpath $fastq_dir) circles=$(realpath $circles)"
-snakemakeconfig="$config $params $conda $cluster"
+snakemakeconfig="$config $params $conda"
 snakemake --snakefile Snakefile --directory $workdir --configfile "genome.yaml" --config $snakemakeconfig
