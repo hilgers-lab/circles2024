@@ -49,10 +49,7 @@ rule all:
         expand(os.path.join("CIRIquant","circles_{circset}","{samplename}.gtf"), circset = circlenames, samplename = samplenames),
         expand(os.path.join("CIRIquant.dge","circles_{circset}","samplesheet_{samplelist}.circles.tsv"), circset = circlenames, samplelist = samplelistset),
         expand(os.path.join("CIRIquant.dge","circles_{circset}","{samplelist}.differential.tsv"), circset = circlenames, samplelist = samplelistset),
-        # expand(os.path.join("STAR_chimeric","{library}","{samplename}.bam"), library = ["library","circles_w1118_combined_RNAseR"], samplename = samplenames),
-        # expand(os.path.join("STAR_chimeric","{library}_IGV_junctions","{samplename}.Chimeric.out.junction.bed"), library = ["library","circles_w1118_combined_RNAseR"], samplename = samplenames)
-        # expand(os.path.join("CIRIquant","circles_{circset}","differential","{samplelist}.count_matrix.genes.csv"), circset = circlenames, samplelist = samplelistset)
-
+        
 rule copy_config:
     output:
         yaml="config.yaml"
