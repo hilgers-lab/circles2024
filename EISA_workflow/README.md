@@ -8,8 +8,7 @@ Create eisa.analysis.R CLI
 
 # Execution
 
-Step 1. `bash run_snakemake <workdir> <config yaml> <snakemake parameters>`
-Step 2. `Rscript eisa.analysis.R <parameters>`
+`bash run_snakemake <workdir> <config yaml> <snakemake parameters>`
 
 # Initialization
 
@@ -26,13 +25,12 @@ Run:
 Output of the snakemake instructions
 
 ```
-<workdir>/
-├── bamCoverage         # Signal tracks
-│   └── log
-├── cluster_log
-├── featureCounts       # featureCounts on exon-exon junctions
-│   └── log
-├── featureCounts.eij   # featureCounts on exon-intron junctions
-│   └── log
-└── tmp
+<workdir>
+├── bamCoverage                     # signal tracks from EIJ
+├── eisa_analysis_default.paired    # eisa standard analysis, any read in feature  
+├── eisa_analysis_junc.paired       # eisa junction-based analysis
+├── featureCounts.classic_paired    # featureCounts for eisa standard analysis
+├── featureCounts.eej_paired        # featureCounts; exon-exon juntions
+├── featureCounts.eij_paired        # featureCounts; exon-intron junctions
+└── feature_db                      # gene, exon, intron databases 
 ```
