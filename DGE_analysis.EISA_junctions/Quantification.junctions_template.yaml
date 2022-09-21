@@ -5,3 +5,5 @@ exonic_db:
 intronic_db:
 # genome annotation gtf, e.g. dm6 ensembl96 gtf
 annotation:
+samplesheets: # can be a list of sheets
+  sheet1: 
