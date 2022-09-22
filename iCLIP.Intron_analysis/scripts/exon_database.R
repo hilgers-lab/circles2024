@@ -21,10 +21,6 @@ option_list = list(
 
 
 opt = parse_args(OptionParser(option_list=option_list))
-# opt$gtf = '../resources/dm6_ensembl96.gtf'
-# opt$transcript_table = '../input/RNAseq.tx_expressed.tsv'
-# opt$biotypes = NULL
-# opt$exon_size_min = 0
 
 suppressPackageStartupMessages(library(rtracklayer))
 suppressPackageStartupMessages(library(readr))
@@ -46,7 +42,7 @@ void <- assertthat::assert_that(all(biotypes.valid %in% mcols(genes)$gene_biotyp
 
 gid2biotype <- (mcols(genes)[,c('gene_id','gene_biotype')]) %>% as.data.frame()
 
-transcripts <- import.gff(opt$gtf, feature.type = 'transcript') 
+transcripts <- import.gff(opt$gtf, feature.type = 'transcript')
 tx2gid <- mcols(transcripts)[c('transcript_id','gene_id')] %>% deframe
 
 txdb0 <- makeTxDbFromGFF(opt$gtf)
@@ -61,9 +57,9 @@ tes <- resize(transcripts, fix = 'end', width = 1) %>% unique
 # Expressed Transcript filter
 if(!is.null(opt$transcript_table)){
   cat('>>> Subsetting by expressed isoforms\n')
-  
+
   tx.tab <- transcripts %>% as.data.frame()
-  
+
   stats = list()
   stats[['transcripts']] = c('total' = nrow(tx.tab),
                            tx.tab %>% summarize(expressed = sum(transcript_id %in% tx.expressed$transcript_id)))
@@ -73,10 +69,10 @@ if(!is.null(opt$transcript_table)){
   stats[['tss']] = c('total'= length(tss), tss %>% as.data.frame() %>% summarize(expressed = sum(transcript_id %in% tx.expressed$transcript_id)))
   stats[['tes']] = c('total' = length(tes), tes %>% as.data.frame() %>% summarize(expressed = sum(transcript_id %in% tx.expressed$transcript_id)))
   print(do.call(rbind, stats)[,c(2,1)])
-  
+
   transcripts <- transcripts %>% subset(transcript_id %in% tx.expressed$transcript_id)
   tx2gid <- mcols(transcripts)[c('transcript_id','gene_id')] %>% deframe
-  
+
   exonic_db <- subset(exonic_db, transcript_id %in% tx.expressed$transcript_id)
   intronic_db <- intronic_db[tx.expressed$transcript_id]
   tss <- tss %>% subset(transcript_id %in% tx.expressed$transcript_id)
@@ -96,7 +92,7 @@ aTES <- tes
 aTES <- aTES[!aTES %over% resize(genes, width = 1, fix = 'end')]
 
 # discard exons overlapping UTRs and intron
-b.feature_select <- !((exonic_db %over% aTSS & exonic_db %within% intronic_db) | 
+b.feature_select <- !((exonic_db %over% aTSS & exonic_db %within% intronic_db) |
                         (exonic_db  %over% aTES & exonic_db %within% intronic_db)) # ;sum(b.feature_select)/length(b.feature_select)
 
 exonic_db.filtered <- subset(exonic_db, b.feature_select & width >= opt$exon_size_min)
@@ -126,8 +122,8 @@ names(exonic_db.reduced)[as.integer(names(gid.set))] = gid.set
 # export.gff(exonic_db, 'exon_database.debug/exons.expressed.gff')
 # export.gff(exonic_db[!b.feature_select], 'exon_database.debug/exons.discarded.gff')
 # export.bed(genes.set, paste0('exon_database.debug/genes.selected.bed'))
-# Problematic X   4075743-4076426 
-### 
+# Problematic X   4075743-4076426
+###
 
 export.bed(exonic_db.reduced, ifelse(endsWith(opt$out_exons,'.bed'), opt$out_exons, paste0(opt$out_exons,'.bed')))
 export.bed(genes.set, ifelse(endsWith(opt$out_genes,'.bed'), opt$out_genes, paste0(opt$out_genes,'.bed')))
