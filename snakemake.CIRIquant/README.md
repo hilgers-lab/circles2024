@@ -16,7 +16,7 @@ Run:
 1. Install conda environment using the `conda.ciriquant.yaml`.
 2. Configure ciriQuant, see github doc at https://github.com/bioinfo-biols/CIRIquant
 3. Prepare `genome.yaml` with following items:
-  - `name`: <project name>
+  - `name`: project name
   - `gtf`: genome annotation file, gtf format
   - `fasta`: genome sequences, fasta format
 4. place `genome.yaml` in the same folder as the `run_snakemake.sh`
