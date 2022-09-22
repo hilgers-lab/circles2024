@@ -1,10 +1,7 @@
 # EISA analysis based on exon-exon/intron junctions
 
-RIP-seq analysis based on exon-exon/intron junction quantification
-
-# TODO
-
-Create eisa.analysis.R CLI
+RIP-seq analysis based on exon-exon/intron junction quantification as well as
+EISA default approach.
 
 # Execution
 
@@ -20,6 +17,11 @@ Run:
 - `<config yaml>`: configuration containing `genome_gtf` and `genome_fasta`
 - `<snakemake parameters>`: snakemake parameters with e.g. number of cores (`-j n`), dryrun (`-n`) etc.
 
+## Notes
+
+Currently, it is not possible from user input side to provide your own exon or intron database.
+This is an interesting feature that could be added, but it is out of scope.
+
 # Output directory
 
 Output of the snakemake instructions
@@ -32,5 +34,5 @@ Output of the snakemake instructions
 ├── featureCounts.classic_paired    # featureCounts for eisa standard analysis
 ├── featureCounts.eej_paired        # featureCounts; exon-exon juntions
 ├── featureCounts.eij_paired        # featureCounts; exon-intron junctions
-└── feature_db                      # gene, exon, intron databases 
+└── feature_db                      # gene, exon, intron databases
 ```

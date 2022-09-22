@@ -1,0 +1,24 @@
+resources:
+    ciri2_reference: <circRNA reference database; CIRI2>
+    gtf: <genome gtf>
+    chrom_sizes: <chromosome sizes, fasta index>
+    iclip: <iCLIP signal tracks; bedgraph> # here we used iCount
+# list of circRNA targets, tsv files with
+# single columns tsv, with header: "circRNA_ID"
+
+circRNA_targets:
+    ciri2_targets:
+# list of DEXseq items, tsv format
+# Require columns: "groupID":gene_id, "featureID": DEXseq exon ID,
+#                  "seqnames":chromosome, "start": start, "end": end, "strand", strand
+exon_targets:
+  dexseq_targets:
+# list of gene_ids
+# Require columns: "gene_id"
+gene_targets:
+    func.gene_set:
+gene_biotypes: protein_coding            # gene,exon,intron databases based on biotype, comma-separated list
+intron_maxgap: 10
+exon_boundaries: 10
+circRNA_merge_distance: 10
+intron_size_thrs: 50
