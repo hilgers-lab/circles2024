@@ -1,6 +1,6 @@
-# circles2022
+# circles2024
 
-Code for Alfonso-Gonzalez et al. (in prep).
+Code for Alfonso-Gonzalez et al.).
 
 Structure:
 
