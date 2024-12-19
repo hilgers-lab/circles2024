@@ -1,0 +1,118 @@
+import glob, os, yaml
+
+# Get the current working directory
+os.getcwd()
+
+# Capture all sample names and comparisons
+SAMPLES, = glob_wildcards("{sample_name}_R1.fastq.gz")
+# SAMPLES, = glob_wildcards("originalFASTQ/{sample_name}_R1.fastq.gz")
+print("Samples found:", SAMPLES)
+
+# Rule to run all steps
+rule all:
+    input:
+        expand("FASTQC/{sample}_R1_fastqc.html", sample=SAMPLES),
+        expand("FASTQC/{sample}_R2_fastqc.html", sample=SAMPLES),
+        # expand("FASTQC/{sample}_trimmed_R1_fastqc.html", sample=SAMPLES),
+        # expand("FASTQC/{sample}_trimmed_R2_fastqc.html", sample=SAMPLES),
+        expand("as/{sample}-type-as", sample=SAMPLES),
+        expand("circ/{sample}-type-circ", sample=SAMPLES),
+        "merge_output.txt"
+
+# Rule for initial FastQC
+rule fastqc_initial:
+    input:
+        R1="{sample}_R1.fastq.gz",
+        R2="{sample}_R2.fastq.gz"
+    output:
+        R1_fastqc="FASTQC/{sample}_R1_fastqc.html",
+        R2_fastqc="FASTQC/{sample}_R2_fastqc.html"
+    shell:
+        """
+        module load fastqc
+        fastqc {input.R1} {input.R2} -o FASTQC/
+        """
+
+# Rule for trimming
+rule trim_galore:
+    input:
+        R1="{sample}_R1.fastq.gz",
+        R2="fastq/{sample}_R2.fastq.gz"
+    output:
+        # R1_trimmed="trimed_FASTQ/{sample}_R1_trimmed.fq.gz",
+        # R2_trimmed="trimed_FASTQ/{sample}_R2_trimmed.fq.gz"
+        R1_trimmed="trimed_FASTQ/{sample}_R1_val_1.fq.gz",
+        R2_trimmed="trimed_FASTQ/{sample}_R2_val_2.fq.gz"
+    shell:
+        """
+        module load trim-galore
+        mkdir -p trimed_FASTQ  # Ensure the directory exists
+        trim_galore -q 20 --phred33 --stringency 3 --length 20 -e 0.1 --paired {input.R1} {input.R2} -o trimed_FASTQ --fastqc -j 15
+        """
+
+# Rule for generating STAR index, for STAR 2.7.0
+rule star_index:
+    input:
+        FastaFiles="UCSC_dm6/dm6.fa",
+        sjdbGTFfile="UCSC_dm6/dm6.ensGene.gtf"
+    output:
+        directory("STAR2.7.0_index")
+    threads: 10
+    shell:
+        """
+        mkdir -p {output}
+        STAR --runThreadN {threads} --runMode genomeGenerate --genomeDir {output} \
+        --genomeFastaFiles {input.FastaFiles} --sjdbGTFfile {input.sjdbGTFfile}
+        """
+
+# Rule for mapping with STAR
+rule star_mapping:
+    input:
+        R1_trimmed="trimed_FASTQ/{sample}_R1_val_1.fq.gz",
+        R2_trimmed="trimed_FASTQ/{sample}_R2_val_2.fq.gz",
+        star_index=rules.star_index.output
+    output:
+        "Align/{sample}_Aligned.out.sam",
+        "Align/{sample}_Chimeric.out.sam"
+    threads: 10  # Define the number of threads
+    shell:
+        """
+        STAR --genomeDir {input.star_index} --readFilesIn {input.R1_trimmed} {input.R2_trimmed} \
+        --readFilesCommand zcat --runThreadN {threads} --chimSegmentMin 20 \
+        --chimScoreMin 1 --alignIntronMax 100000 --outFilterMismatchNmax 4 \
+        --alignTranscriptsPerReadNmax 100000 --outFilterMultimapNmax 2 \
+        --outFileNamePrefix Align/{wildcards.sample}_ \
+        --chimOutType SeparateSAMold
+        """
+
+# Rule for running CircSplice
+rule circsplice:
+    input:
+        chimeric="Align/{sample}_Chimeric.out.sam",
+        # genome_fa="/data/repository/organisms/dm6_ensembl/genome_fasta/genome.fa",
+        genome_fa="UCSC_dm6/dm6.fa",
+        bed="bed_refFlat_dm6_ucsc.txt"
+    output:
+        as_output="as/{sample}-type-as",
+        circ_output="circ/{sample}-type-circ"
+    shell:
+        """
+        mkdir -p as circ
+        module load bedtools samtools
+        perl CircSplice_modified.pl \
+            --chimeric {input.chimeric} \
+            --fa {input.genome_fa} \
+            --ref {input.bed} \
+            --circ {output.circ_output} \
+            --as {output.as_output}
+        """
+
+# Rule for running CircSplice-merge
+rule circsplice_merge:
+    input:
+        as_output=expand("as/{sample}-type-as", sample=SAMPLES),
+        circ_output=expand("circ/{sample}-type-circ", sample=SAMPLES)
+    output:
+        "merge_output.txt"
+    shell:  # Use shell instead of script
+        "perl CircSplice-merge.pl as circ 2> {output}"
